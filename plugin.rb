@@ -10,12 +10,10 @@ enabled_site_setting :tag_group_action_enabled
 
 after_initialize do
   register_search_advanced_filter(/notInTagGroup:(.+)$/) do |posts, match|
-
     if SiteSetting.tagging_enabled && @guardian.is_staff?
       matchNew = match.gsub("_", " ")
 
       if tag_group = TagGroup.find_by_name(matchNew)
-
         posts.where("topics.id NOT IN (
           SELECT DISTINCT tt.topic_id
           FROM topic_tags tt
@@ -29,16 +27,16 @@ after_initialize do
   end
 
   TopicsBulkAction.register_operation("closeDeal") do
-
     if SiteSetting.tagging_enabled &&
        SiteSetting.tga_bulk_action_tag_group_name.present? &&
        SiteSetting.tga_bulk_action_replace_tag_name.present?
 
-      if tag = Tag.find_by_name(SiteSetting.tga_bulk_action_replace_tag_name)
+      tag = Tag.find_by_name(SiteSetting.tga_bulk_action_replace_tag_name)
+      tag_group = TagGroup.find_by_name(SiteSetting.tga_bulk_action_tag_group_name)
 
+      if tag && tag_group
         topics.each do |t|
-
-          guardian.ensure_can_edit_tags!(t)
+          guardian.can_edit?(t)
 
           t.topic_tags.where("
             topic_tags.tag_id IN (
@@ -50,7 +48,7 @@ after_initialize do
               ON tags.id=tgm.tag_id
               OR tags.id=tg.parent_tag_id
               WHERE tg.name=?
-            )", SiteSetting.tga_bulk_action_tag_group_name).destroy_all
+            )", tag_group.name).destroy_all
 
           TopicTag.new(tag_id: tag.id, topic_id: t.id).save
         end
